@@ -10,13 +10,13 @@ dotenv.config();
 const app = express();
 
 // --- NEW MIDDLEWARES ---
-// 1. Request Logging
+// 1. Request Logging (Professional Grade)
 app.use(morgan('dev')); 
 
-// 2. Rate Limiting (Test setting: 5 requests per 15 minutes)
+// 2. Rate Limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, 
-  max: 5, // Change this back to 100 after you take your screenshot!
+  max: 100, // Temporarily 100 for testing, change to 5 for your final submission
   message: "Too many requests from this IP, please try again later."
 });
 app.use(limiter); 
@@ -24,18 +24,19 @@ app.use(limiter);
 
 // ORIGINAL MIDDLEWARES
 app.use(cors({
-  origin: "*", 
-  methods: ["GET", "POST"]
+  origin: "http://localhost:5173", 
+  methods: ["GET", "POST"],
+  credentials: true
 }));
 app.use(express.json());
 
 // DATABASE CONNECTION
 const db = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD, 
-  database: process.env.DB_NAME,
-  port: process.env.DB_PORT || 3306,
+  host: "localhost",
+  user: "root", 
+  password: "", 
+  database: "wellness_db", 
+  port: 3306,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0
@@ -43,14 +44,7 @@ const db = mysql.createPool({
 
 // PART 4 – System Health Check Endpoint
 app.get("/health", (req, res) => {
-  res.json({
-    status: "OK",
-    message: "API running"
-  });
-});
-
-app.get("/", (req, res) => {
-  res.send("🚀 Mental Health API is Running and Connected!");
+  res.json({ status: "OK", message: "API running" });
 });
 
 // GET ALL MOODS
@@ -66,6 +60,10 @@ app.get("/api/moods", async (req, res) => {
 
 // POST A NEW MOOD
 app.post("/api/moods", async (req, res) => {
+  // --- PART 0.2 LOGGING ---
+  console.log("POST /api/moods request received");
+  console.log("Request body:", req.body);
+
   const { full_name, mood_text } = req.body;
   
   if (!full_name || !mood_text) {
@@ -85,6 +83,9 @@ app.post("/api/moods", async (req, res) => {
       "INSERT INTO moods (full_name, mood_text, ai_message) VALUES (?, ?, ?)",
       [full_name, mood_text, ai_message]
     );
+
+    // --- PART 0.2 LOGGING ---
+    console.log("Database insert result:", result);
 
     res.status(201).json({ 
       id: result.insertId, 
