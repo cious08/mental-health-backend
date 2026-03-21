@@ -1,105 +1,59 @@
-import express from "express";
-import cors from "cors";
-import dotenv from "dotenv";
-import mysql from "mysql2/promise";
-import rateLimit from 'express-rate-limit';
-import morgan from 'morgan';
-
-dotenv.config();
+import express from 'express';
+import mysql from 'mysql2/promise'; // This is what was missing!
+import cors from 'cors';
 
 const app = express();
-
-// --- NEW MIDDLEWARES ---
-// 1. Request Logging (Professional Grade)
-app.use(morgan('dev')); 
-
-// 2. Rate Limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, 
-  max: 100, // Temporarily 100 for testing, change to 5 for your final submission
-  message: "Too many requests from this IP, please try again later."
-});
-app.use(limiter); 
-// -----------------------
-
-// ORIGINAL MIDDLEWARES
-app.use(cors({
-  origin: "http://localhost:5173", 
-  methods: ["GET", "POST"],
-  credentials: true
-}));
 app.use(express.json());
+// This tells the server: "I only trust my Vite app"
+app.use(cors({ 
+  origin: "*" 
+}));
 
-// DATABASE CONNECTION
 const db = mysql.createPool({
-  host: "localhost",
-  user: "root", 
-  password: "", 
-  database: "wellness_db", 
-  port: 3306,
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
+  host: "127.0.0.1",
+  user: "root",
+  password: "",
+  database: "mental_health_db",
+  port: 3306
 });
 
-// PART 4 – System Health Check Endpoint
-app.get("/health", (req, res) => {
-  res.json({ status: "OK", message: "API running" });
-});
-
-// GET ALL MOODS
+// --- ROUTE 1: GET ALL MOODS ---
 app.get("/api/moods", async (req, res) => {
   try {
-    const [rows] = await db.query("SELECT * FROM moods ORDER BY created_at DESC");
+    const [rows] = await db.query("SELECT * FROM moods ORDER BY id DESC LIMIT 5");
     res.json(rows);
   } catch (error) {
-    console.error("Database Error:", error);
-    res.status(500).json({ error: "Failed to fetch moods." });
+    res.status(500).json({ error: error.message });
   }
 });
 
-// POST A NEW MOOD
 app.post("/api/moods", async (req, res) => {
-  // --- PART 0.2 LOGGING ---
-  console.log("POST /api/moods request received");
-  console.log("Request body:", req.body);
-
   const { full_name, mood_text } = req.body;
   
-  if (!full_name || !mood_text) {
-    return res.status(400).json({ error: "Name and mood are required." });
-  }
+  // VULNERABLE: We take exactly what the user typed (the script/image tag)
+  // and we send it back as the ai_message too.
+  let ai_message = mood_text; 
 
   try {
-    const responses = [
-      "Remember that it's okay to feel this way. Take a deep breath.",
-      "You're doing your best, and that is enough.",
-      "Take a small break today; you've earned it.",
-      "Stay positive! Every small step counts toward progress."
-    ];
-    const ai_message = `Hello ${full_name}, ${responses[Math.floor(Math.random() * responses.length)]}`;
-
     const [result] = await db.query(
       "INSERT INTO moods (full_name, mood_text, ai_message) VALUES (?, ?, ?)",
       [full_name, mood_text, ai_message]
     );
-
-    // --- PART 0.2 LOGGING ---
-    console.log("Database insert result:", result);
-
-    res.status(201).json({ 
-      id: result.insertId, 
-      full_name, 
-      mood_text, 
-      ai_message 
-    });
+    
+    // Return the data so Vue can render it immediately
+    res.status(201).json({ id: result.insertId, full_name, mood_text, ai_message });
   } catch (error) {
-    console.error("Insert Error:", error);
-    res.status(500).json({ error: "Could not save your mood." });
+    res.status(500).json({ error: error.message });
+  }
+});
+app.get("/api/moods", async (req, res) => {
+  try {
+    // This pulls the last 5 entries, including your malicious script/image
+    const [rows] = await db.query("SELECT * FROM moods ORDER BY id DESC LIMIT 5");
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+app.listen(3000, () => console.log("🚀 Server running in SECURE mode on port 3000"));

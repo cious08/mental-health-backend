@@ -6,7 +6,7 @@ export const db = {
     host: '127.0.0.1',
     user: 'root',
     password: '', // Karaniwang walang password ang XAMPP
-    database: 'wellness_db', // SIGURADUHIN na 'wellness_db' ito
+    database: 'mental_health_db', // SIGURADUHIN na 'wellness_db' ito
     waitForConnections: true,
     connectionLimit: 10
   }),
